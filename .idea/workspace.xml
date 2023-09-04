@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="ce606afc-4b59-49a4-9756-ad85fa80871d" name="Changes" comment="Completed deepsets&#10;Configured new simulation&#10;Applied none penalty&#10;Got test results">
-      <change beforePath="$PROJECT_DIR$/gym_hpa_deepsets/deepsets/ppo/agents.py" beforeDir="false" afterPath="$PROJECT_DIR$/gym_hpa_deepsets/deepsets/ppo/agents.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gym_hpa_deepsets/deepsets/ppo/ppo.py" beforeDir="false" afterPath="$PROJECT_DIR$/gym_hpa_deepsets/deepsets/ppo/ppo.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gym_hpa_deepsets/results.csv" beforeDir="false" afterPath="$PROJECT_DIR$/gym_hpa_deepsets/results.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gym_hpa_deepsets/results/ppo_deepset_2_plot.monitor.csv" beforeDir="false" afterPath="$PROJECT_DIR$/gym_hpa_deepsets/results/ppo_deepset_2_plot.monitor.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gym_hpa_deepsets/run.log" beforeDir="false" afterPath="$PROJECT_DIR$/gym_hpa_deepsets/run.log" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gym_hpa_deepsets/run.py" beforeDir="false" afterPath="$PROJECT_DIR$/gym_hpa_deepsets/run.py" afterDir="false" />
+    <list default="true" id="ce606afc-4b59-49a4-9756-ad85fa80871d" name="Changes" comment="Final Version">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gym_hpa_deepsets/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/gym_hpa_deepsets/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gym_hpa_predictions/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/gym_hpa_predictions/README.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -164,7 +162,7 @@
       <workItem from="1692314043151" duration="11233000" />
       <workItem from="1692517894851" duration="199569000" />
       <workItem from="1693567905021" duration="14713000" />
-      <workItem from="1693812666885" duration="2154000" />
+      <workItem from="1693812666885" duration="2964000" />
     </task>
     <task id="LOCAL-00001" summary="Testing github connection">
       <created>1691759499179</created>
@@ -278,7 +276,21 @@
       <option name="project" value="LOCAL" />
       <updated>1692954584563</updated>
     </task>
-    <option name="localTasksCounter" value="17" />
+    <task id="LOCAL-00017" summary="Final Version">
+      <created>1693814930027</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1693814930027</updated>
+    </task>
+    <task id="LOCAL-00018" summary="Final Version">
+      <created>1693814991286</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1693814991286</updated>
+    </task>
+    <option name="localTasksCounter" value="19" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -308,7 +320,8 @@
     <MESSAGE value="Improved the redis simulation on ds (the observed pods, correspond to the agent's actions)&#10;Run more experiments on ds and stable" />
     <MESSAGE value="Run experiments on latency on ds&#10;Changed the latency none penalty on redis" />
     <MESSAGE value="Completed deepsets&#10;Configured new simulation&#10;Applied none penalty&#10;Got test results" />
-    <option name="LAST_COMMIT_MESSAGE" value="Completed deepsets&#10;Configured new simulation&#10;Applied none penalty&#10;Got test results" />
+    <MESSAGE value="Final Version" />
+    <option name="LAST_COMMIT_MESSAGE" value="Final Version" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/IDLab$stable.coverage" NAME="stable Coverage Results" MODIFIED="1693125315489" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/gym_hpa_stable" />

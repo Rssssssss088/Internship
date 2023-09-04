@@ -1,6 +1,6 @@
 # Predictions in gym-hpa
 
-This is an extension of the original gym-hpa framework, were we attempt to add predictions of certain metrics in the agent's observation space.  
+This is an extension of the original gym-hpa framework, where we attempt to add predictions of certain metrics in the agent's observation space.  
 
 
 ## What kind of algorithms are used?

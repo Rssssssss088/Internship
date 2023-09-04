@@ -1,6 +1,6 @@
 # DeepSets in gym-hpa
 
-This is an extension of the original gym-hpa framework, were we attempt to implement a <b>DeepSets neural network</b> to train our agent. This is a neural network architecture promising to be scalable, meaning that you can train it in a smaller, less complex and computationally intensive environment and then apply it in a different, bigger one, without having to retrain
+This is an extension of the original gym-hpa framework, where we attempt to implement a <b>DeepSets neural network</b> to train our agent. This is a neural network architecture promising to be scalable, meaning that you can train it in a smaller, less complex and computationally intensive environment and then apply it in a different, bigger one, without having to retrain
 
 ## How does it work?
 The network takes as input a tensor, containing the normalized observation per microservice and a number, corresponding to the action the agent will make. It is of size:
