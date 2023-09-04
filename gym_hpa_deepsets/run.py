@@ -43,7 +43,7 @@ logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S
 parser = argparse.ArgumentParser(description='Run ILP!')
 parser.add_argument('--alg', default='ds', help='The algorithm: ["ppo", "recurrent_ppo", "a2c", "ds"]')
 parser.add_argument('--k8s', default=False, action="store_true", help='K8s mode')
-parser.add_argument('--use_case', default='online_boutique', help='Apps: ["redis", "online_boutique"]')
+parser.add_argument('--use_case', default='redis', help='Apps: ["redis", "online_boutique"]')
 parser.add_argument('--goal', default='cost', help='Reward Goal: ["cost", "latency"]')
 
 parser.add_argument('--training', default=False, action="store_true", help='Training mode')

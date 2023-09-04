@@ -82,8 +82,7 @@ class DSPPO(Algorithm):
             "target_kl": self.target_kl,
         }
 
-        # Sets the size of the batch and the minibatch. We won't be using any parallelization, so the batch size is
-        # equal to the number of steps and the minibatch size is equal to the batch size (number of minibatches = 1).
+        # Sets the size of the batch and the minibatch.
         self.batch_size = int(self.num_envs * self.num_steps)
         self.minibatch_size = int(self.batch_size // self.n_minibatches)
 
@@ -93,7 +92,7 @@ class DSPPO(Algorithm):
         )
 
         self.num_apps = self.env.get_attr("num_apps")[0]  # the number of microservices the environment features
-        self.num_actions = self.env.get_attr("num_actions")[0]  # the number of possible action the agent has
+        self.num_actions = self.env.get_attr("num_actions")[0]  # the number of possible actions the agent has
 
         # Here we set the random seeds to ensure reproducibility. The seeds are numbers from 0 to 2^32-1, that indicate
         # a specific state of the random number generator, so if we set the same seed, we will get the same sequence
@@ -118,14 +117,14 @@ class DSPPO(Algorithm):
         # The tensors are initialized with zeros and then moved to the device (CPU or GPU) that we are using.
         # The tensors are initialized with the following shapes:
 
-        # - obs: (n_steps, num_apps, obs_shape / num_apps) - the observations
+        # - obs: (n_steps, num_apps, obs_shape / num_apps + 1) - the observations
         self.obs = torch.zeros((self.num_steps, self.num_envs, self.num_apps * self.num_actions, ((self.env.observation_space.shape[0]) // self.num_apps)+1)).to(self.device)
         # - actions: (n_steps, num_envs, *action_shape) - the actions taken
 
         self.actions = torch.zeros(self.num_steps, self.num_envs).to(self.device)
-        #         print(self.actions.shape)
-        #         # - logprobs: (n_steps, num_envs) - the log probabilities of the actions taken by the agent
+        # print(self.actions.shape)
         # self.masks = torch.zeros((self.num_steps, self.num_envs, self.env.action_space.n), dtype=torch.bool).to(self.device) ##
+        # - logprobs: (n_steps, num_envs) - the log probabilities of the actions taken by the agent
         self.logprobs = torch.zeros((self.num_steps, self.num_envs)).to(self.device)
         # - rewards: (n_steps, num_envs) - the rewards received by the agent
         self.rewards = torch.zeros((self.num_steps, self.num_envs)).to(self.device)
@@ -135,11 +134,21 @@ class DSPPO(Algorithm):
         self.values = torch.zeros((self.num_steps, self.num_envs)).to(self.device)
 
     def reshape_obs(self, next_obs):
-
+        """
+        This function reshapes the observation as obtained by the step() function of the environment to convert it
+        to an observation that can be used as input in the deep set network.
+        :param next_obs: The observation to be reshaped
+        :return: A normalized tensor that has num_apps*num_actions lines and columns as many as the metrics of each microservice,
+                 plus one column that signifies the action number.
+        """
+        # Normalize the environment
         next_obs = np.array(self.env.env_method('normalize', next_obs))
+        # Reshape the observation
         next_obs = next_obs[0].reshape(1, -1)
         original_tensor = next_obs.reshape(self.num_envs, self.num_apps,
                                            (self.env.observation_space.shape[0] // self.num_apps))
+        # Now we add an extra column that represents the action to be made.
+        # It is an integer, from 0 to num_actions, normalized.
 
         # Duplicate the tuples along the second axis
         duplicated_tensor = np.repeat(original_tensor, self.num_actions, axis=1)
@@ -155,8 +164,10 @@ class DSPPO(Algorithm):
 
         # Concatenate the duplicated_tensor and extra_column_tiled along the third axis
         tensor_with_extra_column = np.concatenate((duplicated_tensor, extra_column_tiled), axis=2)
+
+        # Convert to tensor
         final_obs = torch.Tensor(tensor_with_extra_column).to(self.device)
-        return final_obs  # Output: (8, 4, 7)
+        return final_obs
 
     def learn(self, tb_log_name=None, callback=None, total_timesteps: int = 500000):
         """
@@ -172,13 +183,8 @@ class DSPPO(Algorithm):
         # ALGO Logic: Once the environment is initialized the first observation is obtained.
         # It is a tensor of shape (num_envs, *obs_shape), where num_envs is the number of parallel environments
         # that are being used.
-        # In our case, num_envs = 1, since we are not using parallelization. The obs_shape is the shape of the
+        # The obs_shape is the shape of the
         # observation space of the environment, which in our case is (12,).
-
-        #Q How can i make the shape of the observation space (12,1)?
-        #A The observation space is a multibinary space, so we need to modify the agent to output a multibinary vector
-        #  instead of a single number. We also need to modify the loss function to take into account the multibinary
-        #  action space.
 
         # The first observation, as obtained by resetting the environment.
         next_obs = self.env.reset()
@@ -222,14 +228,19 @@ class DSPPO(Algorithm):
                     self.values[step] = value.flatten()
 
                 # Store the action and the log probability of the action in the tensors
-              #  print('On step:', step)
+                # print('On step:', step)
                 self.actions[step] = action
-              #  print('action:', action)
+                # print('action:', action)
                 self.logprobs[step] = logprob
 
-                # Also, we modify the action to be able t be used as a multibinary vector instead of a single one.
+                # ALGO LOGIC: action decoding
+                # We use a MultiDiscrete action space, but the agent chooses one action. In the action chosen by the
+                # agent, there is the information of both the number of pods to deploy/terminated
+                # and in which microservice to do that. It is obtained as shown below.
+
+                # Modify the action to be able t be used as a multibinary vector instead of a single one.
                 valid_action = [[int(action[i]) // self.num_actions, int(action[i]) % self.num_actions] for i in range(self.num_envs)]
-             #   print('so action:', valid_action) ##
+                # print('so action:', valid_action) ##
 
                 # TRY NOT TO MODIFY: execute the environment and log data.
 
@@ -323,9 +334,11 @@ class DSPPO(Algorithm):
                     else:
                         v_loss = 0.5 * ((newvalue - b_returns[mb_inds]) ** 2).mean()
 
+                    # Entropy loss
                     entropy_loss = entropy.mean()
                     loss = pg_loss - self.ent_coef * entropy_loss + v_loss * self.vf_coef
 
+                    # Agent optimization
                     self.optimizer.zero_grad()
                     loss.backward()
                     nn.utils.clip_grad_norm_(self.agent.parameters(), self.max_grad_norm)
@@ -335,6 +348,7 @@ class DSPPO(Algorithm):
                     if approx_kl > self.target_kl:
                         break
 
+                # Explained Variance
                 y_pred, y_true = b_values.cpu().numpy(), b_returns.cpu().numpy()
                 var_y = np.var(y_true)
                 explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
@@ -351,6 +365,7 @@ class DSPPO(Algorithm):
               #  print("FPS:", int(global_step / (time.time() - start_time)))
                 self.writer.add_scalar("charts/FPS", int(global_step / (time.time() - start_time)), global_step)
 
+                # Save the model on every end of an optimization cycle.
                 self.save('run_1/'+'{}'.format(global_step))
     def predict(self, obs: npt.NDArray, masks: Optional[npt.NDArray] = None) -> npt.NDArray:
         """
@@ -371,7 +386,8 @@ class DSPPO(Algorithm):
 
     def load(self, path: str, reset_num_timesteps=False, verbose=1, tensorboard_log=None) -> None:
         """
-        Load model parameters from file
+        Load model parameters from file. The other parameters that are on the function are simply in order to use the
+        same function for all the algorithms, since the stable version's algorithms require these parameters.
         """
         self.agent.load_state_dict(torch.load(path))
         return
