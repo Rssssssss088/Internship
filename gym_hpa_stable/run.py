@@ -27,7 +27,7 @@ from stable_baselines3.common.callbacks import CheckpointCallback
 # Logging
 from policies.util.util import test_model
 
-logging.basicConfig(filename='run.log', filemode='w', level=logging.INFO)
+logging.basicConfig(filename='new_test/run.log', filemode='w', level=logging.INFO)
 logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
 parser = argparse.ArgumentParser(description='Run ILP!')
@@ -36,14 +36,14 @@ parser.add_argument('--k8s', default=False, action="store_true", help='K8s mode'
 parser.add_argument('--use_case', default='redis', help='Apps: ["redis", "onlineboutique"]')
 parser.add_argument('--goal', default='cost', help='Reward Goal: ["cost", "latency"]')
 
-parser.add_argument('--training', default=False, action="store_true", help='Training mode')
-parser.add_argument('--testing', default=True, action="store_true", help='Testing mode')
+parser.add_argument('--training', default=True, action="store_true", help='Training mode')
+parser.add_argument('--testing', default=False, action="store_true", help='Testing mode')
 parser.add_argument('--loading', default=False, action="store_true", help='Loading mode')
 parser.add_argument('--load_path', default='logs/lets_try_normal_env_now/lets_try_this_env_now_10000_steps.zip', help='Loading path, ex: logs/model/test.zip')
-parser.add_argument('--test_path', default='logs/lets_finish_this/lets_finish_this_20000_steps.zip', help='Testing path, ex: logs/model/test.zip')
+parser.add_argument('--test_path', default='a2c_200k_ob_cost_3_obs_new_sim_none_penalty_norm/training_1/steps/finished_180000_steps.zip', help='Testing path, ex: logs/model/test.zip')
 
 parser.add_argument('--steps', default=500, help='The steps for saving.')
-parser.add_argument('--total_steps', default=100000, help='The total number of steps.')
+parser.add_argument('--total_steps', default=200000, help='The total number of steps.')
 
 args = parser.parse_args()
 
@@ -112,7 +112,7 @@ def main():
 
     tensorboard_log = "results/" + use_case + "/" + scenario + "/" + goal + "/"
 
-    name = 'lets_finish_this'
+    name = 'finish'
 
     # callback
     checkpoint_callback = CheckpointCallback(save_freq=steps, save_path="logs/" + name, name_prefix=name)

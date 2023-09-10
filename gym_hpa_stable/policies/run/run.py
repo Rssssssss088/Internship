@@ -100,7 +100,6 @@ def main():
     tensorboard_log = "../../results/" + use_case + "/" + scenario + "/" + goal + "/"
 
     name = alg + "_env_" + env.name + "_goal_" + goal + "_k8s_" + str(k8s) + "_totalSteps_" + str(total_steps)
-
     # callback
     checkpoint_callback = CheckpointCallback(save_freq=steps, save_path="logs/" + name, name_prefix=name)
 
