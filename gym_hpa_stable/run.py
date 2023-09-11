@@ -27,7 +27,7 @@ from stable_baselines3.common.callbacks import CheckpointCallback
 # Logging
 from policies.util.util import test_model
 
-logging.basicConfig(filename='new_test/run.log', filemode='w', level=logging.INFO)
+logging.basicConfig(filename='models/a2c_200k_redis_cost_new_sim_none_penalty/run.log', filemode='w', level=logging.INFO)
 logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
 parser = argparse.ArgumentParser(description='Run ILP!')
