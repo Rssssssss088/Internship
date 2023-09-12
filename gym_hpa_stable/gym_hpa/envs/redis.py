@@ -374,15 +374,15 @@ class Redis(gym.Env):
         # Return ob
         ob = (
             self.deploymentList[0].num_pods,
-            self.deploymentList[0].desired_replicas,
+          #  self.deploymentList[0].desired_replicas,
             self.deploymentList[0].cpu_usage,
             self.deploymentList[0].mem_usage,
-            self.deploymentList[0].received_traffic, self.deploymentList[0].transmit_traffic,
+         #   self.deploymentList[0].received_traffic, self.deploymentList[0].transmit_traffic,
             self.deploymentList[1].num_pods,
-            self.deploymentList[1].desired_replicas,
+          #  self.deploymentList[1].desired_replicas,
             self.deploymentList[1].cpu_usage,
             self.deploymentList[1].mem_usage,
-            self.deploymentList[1].received_traffic, self.deploymentList[1].transmit_traffic,
+          #  self.deploymentList[1].received_traffic, self.deploymentList[1].transmit_traffic,
         )
 
         return self.normalize(ob)
@@ -391,30 +391,30 @@ class Redis(gym.Env):
         return spaces.Box(
                 low=np.array([
                     self.min_pods,  # Number of Pods  -- master metrics
-                    self.min_pods,  # Desired Replicas
+                  #  self.min_pods,  # Desired Replicas
                     0,  # CPU Usage (in m)
                     0,  # MEM Usage (in MiB)
-                    0,  # Average Number of received traffic
-                    0,  # Average Number of transmit traffic
+                  #  0,  # Average Number of received traffic
+                  #  0,  # Average Number of transmit traffic
                     self.min_pods,  # Number of Pods -- slave metrics
-                    self.min_pods,  # Number of Pods -- slave metrics
+                  #  self.min_pods,  # Number of Pods -- slave metrics
                     0,  # CPU Usage (in m)
                     0,  # MEM Usage (in MiB)
-                    0,  # Average Number of received traffic
-                    0,  # Average Number of transmit traffic
+                  #  0,  # Average Number of received traffic
+                  #  0,  # Average Number of transmit traffic
                 ]), high=np.array([
                     self.max_pods,  # Number of Pods -- master metrics
-                    self.max_pods,  # Desired Replicas
+                  #  self.max_pods,  # Desired Replicas
                     get_max_cpu(),  # CPU Usage (in m)
                     get_max_mem(),  # MEM Usage (in MiB)
-                    get_max_traffic(),  # Average Number of received traffic
-                    get_max_traffic(),  # Average Number of transmit traffic
+                  #  get_max_traffic(),  # Average Number of received traffic
+                   # get_max_traffic(),  # Average Number of transmit traffic
                     self.max_pods,  # Number of Pods -- slave metrics
-                    self.max_pods,  # Desired Replicas
+                #    self.max_pods,  # Desired Replicas
                     get_max_cpu(),  # CPU Usage (in m)
                     get_max_mem(),  # MEM Usage (in MiB)
-                    get_max_traffic(),  # Average Number of received traffic
-                    get_max_traffic(),  # Average Number of transmit traffic
+                #    get_max_traffic(),  # Average Number of received traffic
+                 #   get_max_traffic(),  # Average Number of transmit traffic
                 ]),
                 dtype=np.float32
             )
@@ -528,11 +528,11 @@ class Redis(gym.Env):
             fields.append('date')
             for d in self.deploymentList:
                 fields.append(d.name + '_num_pods')
-                fields.append(d.name + '_desired_replicas')
+              #  fields.append(d.name + '_desired_replicas')
                 fields.append(d.name + '_cpu_usage')
                 fields.append(d.name + '_mem_usage')
-                fields.append(d.name + '_traffic_in')
-                fields.append(d.name + '_traffic_out')
+              #  fields.append(d.name + '_traffic_in')
+              #  fields.append(d.name + '_traffic_out')
                 fields.append(d.name + '_latency')
 
             '''
@@ -549,18 +549,18 @@ class Redis(gym.Env):
             writer.writerow(
                 {'date': date,
                  'redis-leader_num_pods': float("{}".format(obs[0])),
-                 'redis-leader_desired_replicas': float("{}".format(obs[1])),
-                 'redis-leader_cpu_usage': float("{}".format(obs[2])),
-                 'redis-leader_mem_usage': float("{}".format(obs[3])),
-                 'redis-leader_traffic_in': float("{}".format(obs[4])),
-                 'redis-leader_traffic_out': float("{}".format(obs[5])),
+              #   'redis-leader_desired_replicas': float("{}".format(obs[1])),
+                 'redis-leader_cpu_usage': float("{}".format(obs[1])),
+                 'redis-leader_mem_usage': float("{}".format(obs[2])),
+              #   'redis-leader_traffic_in': float("{}".format(obs[4])),
+              #   'redis-leader_traffic_out': float("{}".format(obs[5])),
                  'redis-leader_latency': float("{:.3f}".format(latency)),
-                 'redis-follower_num_pods': float("{}".format(obs[6])),
-                 'redis-follower_desired_replicas': float("{}".format(obs[7])),
-                 'redis-follower_cpu_usage': float("{}".format(obs[8])),
-                 'redis-follower_mem_usage': float("{}".format(obs[9])),
-                 'redis-follower_traffic_in': float("{}".format(obs[10])),
-                 'redis-follower_traffic_out': float("{}".format(obs[11])),
+                 'redis-follower_num_pods': float("{}".format(obs[3])),
+               #  'redis-follower_desired_replicas': float("{}".format(obs[7])),
+                 'redis-follower_cpu_usage': float("{}".format(obs[4])),
+                 'redis-follower_mem_usage': float("{}".format(obs[5])),
+              #   'redis-follower_traffic_in': float("{}".format(obs[10])),
+              #   'redis-follower_traffic_out': float("{}".format(obs[11])),
                  'redis-follower_latency': float("{:.3f}".format(latency))
                  }
             )

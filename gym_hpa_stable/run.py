@@ -27,7 +27,7 @@ from stable_baselines3.common.callbacks import CheckpointCallback
 # Logging
 from policies.util.util import test_model
 
-logging.basicConfig(filename='models/a2c_200k_redis_cost_new_sim_none_penalty/run.log', filemode='w', level=logging.INFO)
+logging.basicConfig(filename='run.log', filemode='w', level=logging.INFO)
 logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
 parser = argparse.ArgumentParser(description='Run ILP!')
@@ -36,11 +36,11 @@ parser.add_argument('--k8s', default=False, action="store_true", help='K8s mode'
 parser.add_argument('--use_case', default='redis', help='Apps: ["redis", "onlineboutique"]')
 parser.add_argument('--goal', default='cost', help='Reward Goal: ["cost", "latency"]')
 
-parser.add_argument('--training', default=True, action="store_true", help='Training mode')
-parser.add_argument('--testing', default=False, action="store_true", help='Testing mode')
+parser.add_argument('--training', default=False, action="store_true", help='Training mode')
+parser.add_argument('--testing', default=True, action="store_true", help='Testing mode')
 parser.add_argument('--loading', default=False, action="store_true", help='Loading mode')
 parser.add_argument('--load_path', default='logs/lets_try_normal_env_now/lets_try_this_env_now_10000_steps.zip', help='Loading path, ex: logs/model/test.zip')
-parser.add_argument('--test_path', default='a2c_200k_ob_cost_3_obs_new_sim_none_penalty_norm/training_1/steps/finished_180000_steps.zip', help='Testing path, ex: logs/model/test.zip')
+parser.add_argument('--test_path', default='models/a2c_100k_redis_cost_3_obs_new_sim_none_penalty_norm/training_1/steps/finished_100000_steps.zip', help='Testing path, ex: logs/model/test.zip')
 
 parser.add_argument('--steps', default=500, help='The steps for saving.')
 parser.add_argument('--total_steps', default=200000, help='The total number of steps.')
@@ -130,7 +130,7 @@ def main():
 
     if testing:
         model = get_load_model(alg, tensorboard_log, test_path)
-        test_model(model, env, n_episodes=100, n_steps=110, smoothing_window=5, fig_name=name + "_check2.png")
+        test_model(model, env, n_episodes=100, n_steps=110, smoothing_window=5, fig_name="results.png")
 
 
 if __name__ == "__main__":

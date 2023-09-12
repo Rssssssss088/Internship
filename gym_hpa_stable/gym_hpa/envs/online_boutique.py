@@ -446,7 +446,7 @@ class OnlineBoutique(gym.Env):
               #  self.deploymentList[ID_email].received_traffic, self.deploymentList[ID_email].transmit_traffic,
             )
 
-        return self.normalize(ob)
+        return ob
 
     def get_observation_space(self):
             return spaces.Box(
