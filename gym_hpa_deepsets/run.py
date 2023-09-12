@@ -43,14 +43,14 @@ logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S
 parser = argparse.ArgumentParser(description='Run ILP!')
 parser.add_argument('--alg', default='ds', help='The algorithm: ["ppo", "recurrent_ppo", "a2c", "ds"]')
 parser.add_argument('--k8s', default=False, action="store_true", help='K8s mode')
-parser.add_argument('--use_case', default='redis', help='Apps: ["redis", "online_boutique"]')
+parser.add_argument('--use_case', default='online_boutique', help='Apps: ["redis", "online_boutique"]')
 parser.add_argument('--goal', default='cost', help='Reward Goal: ["cost", "latency"]')
 
 parser.add_argument('--training', default=False, action="store_true", help='Training mode')
 parser.add_argument('--testing', default=True, action="store_true", help='Testing mode')
 parser.add_argument('--loading', default=False, action="store_true", help='Loading mode')
 parser.add_argument('--load_path', default='', help='Loading path, ex: logs/model/test.zip')
-parser.add_argument('--test_path', default='model_ds_tr_ob_200k_cost_4_obs_fin_sim/training_1/steps/200000', help='Testing path, ex: logs/model/test.zip')
+parser.add_argument('--test_path', default='models/ds_tr_redis_200k_cost_4_obs_new_sim/training_1/steps/150400', help='Testing path, ex: logs/model/test.zip')
 
 parser.add_argument('--steps', default=500, help='The steps for saving.')
 parser.add_argument('--total_steps', default=200000, help='The total number of steps.')
