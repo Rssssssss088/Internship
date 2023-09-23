@@ -1,6 +1,7 @@
 import csv
 import datetime
 import logging
+import os.path
 import time
 import pickle
 from statistics import mean
@@ -603,7 +604,7 @@ class Redis(gym.Env):
         return
 
 
-    def save_obs_to_csv(self, obs_file, obs, date, latency, past_horizon=100):
+    def save_obs_to_csv(self, obs_file, obs, date, latency, past_horizon=101):
         """
         Updates the observation file, that contains the past observations, with the current observation
 
@@ -672,8 +673,8 @@ class Redis(gym.Env):
 
             # If the number of lines exceeds past_horizon, remove the first line
             if len(lines) > past_horizon-1:
-                lines.pop(1)
 
+                lines.pop(1)
                 recent_file.seek(0)
                 recent_file.truncate()
                 recent_file.writelines(lines)

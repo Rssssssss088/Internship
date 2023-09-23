@@ -17,6 +17,11 @@ All the prediction algorithms were implemented in a single class, so as to be mo
 <br><b>In-sample Predictions:</b> They are predictions done using the given dataset. This way, they give an estimation of the model’s accuracy during the simulation or cluster. Also, because these environments might be more chaotic than the dataset’s, it is easier to predict.
 <br><br><b>Out-of-sample Predictions</b>: This is the expansion of the first idea, where predictions take place in real time, during the simulation/cluster mode. It is what was originally intended. 
 <br>There is also a forecasting horizon, so that the algorithms can be used for predictions further into the future.
+
+## <i>Note</i>: The Gym_hpa_Predictions Jupyter notebook
+This [link](https://colab.research.google.com/drive/13NajlHg4cibTmzcvQmOlsuWcuhLLhycu#scrollTo=va59AfhcQ1I8&uniqifier=1)
+contains a Jupyter Notebook uploaded in the Google Colab environment. This notebook is used to generate some analytics about the datasets, as well as to edit them. It is also used to train the ML prediction models, utilizing the Colab's GPU acceleration.  
+
 ## Team
 
 * [Jose Santos](https://scholar.google.com/citations?hl=en&user=57EIYWcAAAAJ)

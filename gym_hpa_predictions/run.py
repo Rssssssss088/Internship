@@ -25,11 +25,11 @@ parser.add_argument('--k8s', default=False, action="store_true", help='K8s mode'
 parser.add_argument('--use_case', default='redis', help='Apps: ["redis", "onlineboutique"]')
 parser.add_argument('--goal', default='cost', help='Reward Goal: ["cost", "latency"]')
 
-parser.add_argument('--prediction', default='ses', help='Prediction method: ["lstm", "arima", "naive", "prophet", "ses", "average"]')
+parser.add_argument('--prediction', default='naive', help='Prediction method: ["lstm", "arima", "naive", "prophet", "ses", "average"]')
 parser.add_argument('--timeseries', default=False, help='Timeseries: if True, use corrected data, else use initial data')
 
-parser.add_argument('--training', default=False, action="store_true", help='Training mode')
-parser.add_argument('--testing', default=True, action="store_true", help='Testing mode')
+parser.add_argument('--training', default=True, action="store_true", help='Training mode')
+parser.add_argument('--testing', default=False, action="store_true", help='Testing mode')
 parser.add_argument('--loading', default=False, action="store_true", help='Loading mode')
 parser.add_argument('--load_path', default='logs/model/test.zip', help='Loading path, ex: logs/model/test.zip')
 parser.add_argument('--test_path', default='logs/fin_a2c_env_redis_gym_goal_cost_k8s_False_totalSteps_100000_pred_ses_dynamic/fin_a2c_env_redis_gym_goal_cost_k8s_False_totalSteps_100000_pred_ses_dynamic_35500_steps.zip', help='Testing path, ex: logs/model/test.zip')
@@ -158,7 +158,7 @@ def main():
 
     tensorboard_log = "results/" + use_case + "/" + scenario + "/" + goal + "/"
 
-    name = 'fin_' + alg + "_env_" + env.name + "_goal_" + goal + "_k8s_" + str(k8s) + "_totalSteps_" + str(total_steps) + \
+    name = 'f_' + alg + "_env_" + env.name + "_goal_" + goal + "_k8s_" + str(k8s) + "_totalSteps_" + str(total_steps) + \
            "_pred_" + prediction + '_dynamic'
 
     # callback
