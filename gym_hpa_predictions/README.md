@@ -14,7 +14,7 @@ It has three parameters, p, d and q, which can be determined by the auto_arima()
 
 ## How were the predictions implemented in the main project?
 All the prediction algorithms were implemented in a single class, so as to be more easily deployed and used in the main project, with minimum changes in its original code. There are two ways of forecasting implemented:
-<br><b>In-sample Predictions:</b> They are predictions done using the given dataset. This way, they give an estimation of the model’s accuracy during the simulation or cluster. Also, because these environments might be more chaotic than the dataset’s, it is easier to predict.
+<br><br><b>In-sample Predictions:</b> They are predictions done using the given dataset. This way, they give an estimation of the model’s accuracy during the simulation or cluster. Also, because these environments might be more chaotic than the dataset’s, it is easier to predict.
 <br><br><b>Out-of-sample Predictions</b>: This is the expansion of the first idea, where predictions take place in real time, during the simulation/cluster mode. It is what was originally intended. 
 <br>There is also a forecasting horizon, so that the algorithms can be used for predictions further into the future.
 
