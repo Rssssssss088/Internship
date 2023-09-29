@@ -7,6 +7,7 @@ import plotly.graph_objs as go
 import pandas as pd
 from pmdarima.arima import auto_arima
 from statsmodels.tsa.arima.model import ARIMA
+import tensorflow as tf
 
 
 class Prediction:
@@ -85,9 +86,9 @@ class Prediction:
         return df_resampled
 
     @staticmethod
-    def load_lstm():
-        #loaded_model = tf.keras.models.load_model(prediction/models/lstm)
-        return
+    def load_lstm(directory):
+        loaded_model = tf.keras.models.load_model(directory)
+        return loaded_model
 
     def create_env_for_NN(self, data, new_value=None):
         """
@@ -98,7 +99,7 @@ class Prediction:
                  y: the actual values (used for error correction and learning purposes)
                  scaler: the scaler used to scale the dataset for training. It will then be used to convert the scaled predictions to actual values
         """
-        dataset = data.filter(['redis-predictions']).values
+        dataset = data.filter([self.val_col]).values
 
         if new_value is not None:
             a_list = dataset.tolist()
@@ -161,7 +162,7 @@ class Prediction:
         # Тrain the model
         model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs)
 
-        model.save('prediction/models/lstm')
+        model.save('gym_hpa/predictions/pred_models/lstm_models/local_trained')
         # Structure of the model
         #keras.utils.plot_model(model, 'multi_input_and_output_model.png', show_shapes=True)
 
@@ -169,9 +170,9 @@ class Prediction:
 
     def lstm_test(self, model, x_test, scaler):
         # Predict on test data
-        lstm_predictions = model.predict(x_test)
+        lstm_predictions = model.predict(x_test, verbose=0)
         lstm_predictions = scaler.inverse_transform(lstm_predictions)
-        lstm_predictions = np.vstack((self.testset.filter(['redis-leader_cpu_usage']).values[0:60].astype(np.int), lstm_predictions.astype(np.int)))
+        lstm_predictions = np.vstack((self.testset.filter([self.val_col]).values[0:60].astype(int), lstm_predictions.astype(int)))
         return lstm_predictions
 
     def naive(self):
@@ -244,7 +245,7 @@ class Prediction:
         lstm_predictions = self.lstm_test(model, x_test, scaler_test)
         return lstm_predictions
 
-    def lstm_test_dynamic(self, batch_size, epochs, model, observation):
+    def lstm_test_dynamic(self, model):
         x_test, y_test, scaler_test = self.create_env_for_NN(self.testset)
         lstm_predictions = self.lstm_test(model, x_test, scaler_test)
         return lstm_predictions[-1]

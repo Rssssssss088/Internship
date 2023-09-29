@@ -400,7 +400,8 @@ class Redis(gym.Env):
                 if self.current_step != 0:
                     deployment.predictions = int(pred.ses_dynamic())
             elif self.prediction == 'lstm':
-                deployment.predictions = int(pred.lstm_dynamic())
+                lstm_model = pred.load_lstm('gym_hpa/predictions/pred_models/lstm_models/online_trained')
+                deployment.predictions = int(pred.lstm_test_dynamic(lstm_model))
             elif self.prediction == 'arima':
                 if self.current_step % (5 * self.current_step+1) == 0:
                     arima_model = pred.arima_fit()
