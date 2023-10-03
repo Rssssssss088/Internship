@@ -87,11 +87,18 @@ class Prediction:
 
     @staticmethod
     def load_lstm(directory):
+        """
+        Loads a pre-trained LSTM model.
+
+        :param directory: The directory to load the model from
+        :return: The loaded model
+        """
         loaded_model = tf.keras.models.load_model(directory)
         return loaded_model
 
     def create_env_for_NN(self, data, new_value=None):
         """
+        Transforms the dataset to a type that can be used to make predictions in the LSTM model.
 
         :param data: the dataset to be converted
         :param new_value: the latest value, that is not yet saved in the dataset. It is used for the out-of-sample lstm.
@@ -133,18 +140,18 @@ class Prediction:
 
         return x, y, scaler
 
-    def moving_average_n(self, n):
-        """
-        Take the average of the testset and trainset every n seconds and return the result
-        :param n:
-        :return:
-        """
-        testset = self.testset.iloc[::n, :]
-        trainset = self.testset.iloc[::n, :]
-        return trainset, testset
-
     @staticmethod
     def lstm_train(x_train, y_train, batch_size, epochs):
+        """
+        Implements the training of the LSTM algorithm for predictions. It also saves it in the corresponding directory.
+        It should be avoided to be run locally and be run in the Colab notebook instead, in order to use the gpu.
+
+        :param x_train: The normalized x values (observations) of the training
+        :param y_train: The normalized y values (next observations) of the training
+        :param batch_size: The batch size of the training
+        :param epochs: The epochs to train
+        :return: The trained model
+        """
 
         # Build LSTM model
 
@@ -169,10 +176,18 @@ class Prediction:
         return model
 
     def lstm_test(self, model, x_test, scaler):
+        """
+        Implementation of the testing for the LSTM model - makes the predictions for the testset.
+
+        :param model: The trained LSTM model
+        :param x_test: The normalized values of the testset
+        :param scaler: The scaler value
+        :return: The predictions for every observation in the testset
+        """
         # Predict on test data
         lstm_predictions = model.predict(x_test, verbose=0)
         lstm_predictions = scaler.inverse_transform(lstm_predictions)
-        lstm_predictions = np.vstack((self.testset.filter([self.val_col]).values[0:60].astype(int), lstm_predictions.astype(int)))
+        # lstm_predictions = np.vstack((self.testset.filter([self.val_col]).values.astype(int), lstm_predictions.astype(int)))
         return lstm_predictions
 
     def naive(self):
@@ -198,10 +213,10 @@ class Prediction:
 
     def ses(self, alpha):
         """
-        Implementation of the SES (Simple Exponential Smoothing) algorithm in-sample. The prediction is used
+        Implementation of the SES (Simple Exponential Smoothing) algorithm in-sample.
 
         :param alpha:
-        :return:
+        :return: The predicted values for all the observations in the testset.
         """
         timeseries = self.testset.filter([self.val_col]).values
         forecast = []
@@ -212,10 +227,20 @@ class Prediction:
         return forecast[:-1]
 
     def ses_dynamic(self, alpha=0.4):
+        """
+        Implementation of the SES (Simple Exponential Smoothing) algorithm out-of-sample.
+
+        :param alpha: The 'alpha' parameter of the SES algorithm
+        :return: The predicted value of the next observation
+        """
         forecast = int(alpha * self.current_value + (1 - alpha) * self.testset.filter([self.val_col+'_predictions']).values[-1])
         return forecast
 
     def arima_fit(self):
+        """
+        Specifies the parameters of the ARIMA model and fits it into the testset
+        :return: The fitted ARIMA model
+        """
         testset = self.testset[self.val_col].values
         stepwise_fit = auto_arima(testset, start_p=0, start_d =0, start_q=0,
                           max_p=5, max_d=5, max_q=5, seasonal=False, trace = False,
@@ -227,16 +252,34 @@ class Prediction:
         return fitted_model
 
     def arima(self, model):
+        """
+        Applies in_sample predictions for the observations in the
+        :param model:
+        :return:
+        """
         forecast = model.predict()
         return forecast
 
     def arima_dynamic(self, model):
+        """
+        Applies out-of-sample prediction for the last observation using an ARIMA model.
+
+        :param model: The ARIMA model
+        :return: The forecast for the ARIMA model (with a prediction horizon of self.n_steps)
+        """
         forecast = model.forecast(steps=self.n_steps)
 
         return forecast
 
 
     def lstm(self, batch_size, epochs):
+        """
+        A function that executes both the training and the testing for the given datasets.
+
+        :param batch_size: The batch size of the training
+        :param epochs: The number of epochs to train
+        :return: The predictions for each observation in the testing dataset
+        """
         x_train, y_train, scaler_train = self.create_env_for_NN(self.trainset)
         x_test, y_test, scaler_test = self.create_env_for_NN(self.testset)
         print('Model training...')
@@ -246,7 +289,14 @@ class Prediction:
         return lstm_predictions
 
     def lstm_test_dynamic(self, model):
+        """
+        Applies out-of-sample prediction for the last obserrvation using lstm prediction method.
+
+        :param model: The trained lstm model used for predictions
+        :return: the prediction for the last observation
+        """
         x_test, y_test, scaler_test = self.create_env_for_NN(self.testset)
+        # print(x_test.shape)
         lstm_predictions = self.lstm_test(model, x_test, scaler_test)
         return lstm_predictions[-1]
 

@@ -28,14 +28,14 @@ parser.add_argument('--goal', default='cost', help='Reward Goal: ["cost", "laten
 parser.add_argument('--prediction', default='lstm', help='Prediction method: ["lstm", "arima", "naive", "prophet", "ses", "average"]')
 parser.add_argument('--timeseries', default=False, help='Timeseries: if True, use corrected data, else use initial data')
 
-parser.add_argument('--training', default=True, action="store_true", help='Training mode')
-parser.add_argument('--testing', default=False, action="store_true", help='Testing mode')
+parser.add_argument('--training', default=False, action="store_true", help='Training mode')
+parser.add_argument('--testing', default=True, action="store_true", help='Testing mode')
 parser.add_argument('--loading', default=False, action="store_true", help='Loading mode')
-parser.add_argument('--load_path', default='logs/model/test.zip', help='Loading path, ex: logs/model/test.zip')
-parser.add_argument('--test_path', default='f_a2c_env_redis_gym_goal_cost_k8s_False_totalSteps_100000_pred_arima_dynamic_100000_steps.zip', help='Testing path, ex: logs/model/test.zip')
+parser.add_argument('--load_path', default='f_a2c_env_redis_gym_goal_cost_k8s_False_totalSteps_25000_pred_lstm_dynamic_25000_steps.zip', help='Loading path, ex: logs/model/test.zip')
+parser.add_argument('--test_path', default='f_a2c_env_redis_gym_goal_cost_k8s_False_totalSteps_25000_pred_lstm_dynamic_25000_steps', help='Testing path, ex: logs/model/test.zip')
 
 parser.add_argument('--steps', default=500, help='The steps for saving.')
-parser.add_argument('--total_steps', default=100000, help='The total number of steps.')
+parser.add_argument('--total_steps', default=25000, help='The total number of steps.')
 
 args = parser.parse_args()
 

@@ -147,6 +147,7 @@ class Redis(gym.Env):
 
         self.none_counter = 0 ### initialization of the none counter used in the reward function
         self.prediction = prediction ### initialization of the prediction variable, that will store the prediction for the next observation
+        self.lstm_model = Prediction.load_lstm('gym_hpa/predictions/pred_models/lstm_models/online_trained') ### loads the trained LSTM model for the predictions
 
     def step(self, action):
         """
@@ -400,13 +401,15 @@ class Redis(gym.Env):
                 if self.current_step != 0:
                     deployment.predictions = int(pred.ses_dynamic())
             elif self.prediction == 'lstm':
-                lstm_model = pred.load_lstm('gym_hpa/predictions/pred_models/lstm_models/online_trained')
-                deployment.predictions = int(pred.lstm_test_dynamic(lstm_model))
+                deployment.predictions = int(pred.lstm_test_dynamic(self.lstm_model))
             elif self.prediction == 'arima':
+                # Because the calculations of the parameters of the ARIMA model is computationally intensive, we perform
+                # every few steps, and we use the latest model for the predictions between the trainings.
                 if self.current_step % (5 * self.current_step+1) == 0:
-                    arima_model = pred.arima_fit()
+                    arima_model = pred.arima_fit()  # performs the training
                     with open('gym_hpa/predictions/pred_models/dynamic_arima_model.pkl', 'wb') as directory:
-                        pickle.dump(arima_model, directory)
+                        pickle.dump(arima_model, directory) # saves the trained model in the corresponding directory
+                # load the trained model
                 with open('gym_hpa/predictions/pred_models/dynamic_arima_model.pkl', 'rb') as directory:
                     model = pickle.load(directory)
                 deployment.predictions = int(pred.arima_dynamic(model))
@@ -605,7 +608,7 @@ class Redis(gym.Env):
         return
 
 
-    def save_obs_to_csv(self, obs_file, obs, date, latency, past_horizon=101):
+    def save_obs_to_csv(self, obs_file, obs, date, latency, past_horizon=62):
         """
         Updates the observation file, that contains the past observations, with the current observation
 
