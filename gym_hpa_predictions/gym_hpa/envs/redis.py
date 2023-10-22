@@ -3,7 +3,7 @@ import datetime
 import logging
 import os.path
 import time
-import pickle
+import pickle ###
 from statistics import mean
 
 import gym
@@ -64,7 +64,7 @@ class Redis(gym.Env):
 
     metadata = {'render.modes': ['human', 'ansi', 'array']}
 
-    def __init__(self, prediction, k8s=False, goal_reward=COST, waiting_period=1):
+    def __init__(self, prediction, k8s=False, goal_reward=COST, waiting_period=1): ###
         """
         Our custom OpenAI environment for the Redis Application
 
@@ -477,7 +477,7 @@ class Redis(gym.Env):
         if self.goal_reward == COST:
             reward = get_cost_reward(self.deploymentList)
             ### none penalty: if the agent uses more than twice the none action without achieving the highest reward, penaltize it increasingly.
-            if reward != 2 and self.none_counter>2:
+            if reward != self.num_apps and self.none_counter>2:
                 reward = -self.none_counter
 
         elif self.goal_reward == LATENCY:
@@ -608,7 +608,7 @@ class Redis(gym.Env):
         return
 
 
-    def save_obs_to_csv(self, obs_file, obs, date, latency, past_horizon=62):
+    def save_obs_to_csv(self, obs_file, obs, date, latency, past_horizon=62): ###
         """
         Updates the observation file, that contains the past observations, with the current observation
 
@@ -635,6 +635,7 @@ class Redis(gym.Env):
                 fields.append(d.name + '_traffic_out')
                 fields.append(d.name + '_latency')
 
+            ###
             new_entry = {'date': date,
                  'redis-leader_num_pods': float("{}".format(obs[0])),
                  'redis-leader_desired_replicas': float("{}".format(obs[1])),

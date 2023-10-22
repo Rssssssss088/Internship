@@ -185,7 +185,7 @@ class Prediction:
         :return: The predictions for every observation in the testset
         """
         # Predict on test data
-        lstm_predictions = model.predict(x_test, verbose=0)
+        lstm_predictions = model.predict(x_test, verbose=1)
         lstm_predictions = scaler.inverse_transform(lstm_predictions)
         # lstm_predictions = np.vstack((self.testset.filter([self.val_col]).values.astype(int), lstm_predictions.astype(int)))
         return lstm_predictions

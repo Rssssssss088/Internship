@@ -2,7 +2,9 @@ import csv
 import datetime
 from datetime import datetime
 import logging
+import os.path
 import time
+import pickle ###
 from statistics import mean
 
 import gym
@@ -15,6 +17,8 @@ from gym.utils import seeding
 from gym_hpa_predictions.gym_hpa.envs.deployment import get_max_cpu, get_max_mem, get_max_traffic, get_online_boutique_deployment_list
 from gym_hpa_predictions.gym_hpa.envs.util import save_to_csv, get_num_pods, get_cost_reward, \
     get_latency_reward_online_boutique
+from gym_hpa_predictions.gym_hpa.predictions import Prediction ###
+
 
 # MIN and MAX Replication
 MIN_REPLICATION = 1
@@ -75,7 +79,7 @@ class OnlineBoutique(gym.Env):
     metadata = {'render.modes': ['human', 'ansi', 'array']}
 
     ###NODE WAITING TIME###
-    def __init__(self, k8s=False, goal_reward="cost", waiting_period=1):
+    def __init__(self, prediction, k8s=False, goal_reward="cost", waiting_period=1): ###
         # Define action and observation space
         # They must be gym.spaces objects
 
@@ -117,7 +121,7 @@ class OnlineBoutique(gym.Env):
 
         self.min_pods = MIN_REPLICATION
         self.max_pods = MAX_REPLICATION
-        self.num_apps = 2
+        self.num_apps = 11
 
         # Deployment Data
         self.deploymentList = get_online_boutique_deployment_list(self.k8s, self.min_pods, self.max_pods)
@@ -153,6 +157,10 @@ class OnlineBoutique(gym.Env):
         self.obs_csv = self.name + "_observation.csv"
         self.df = pd.read_csv("../../datasets/real/" + self.deploymentList[0].namespace + "/v1/"
                               + self.name + '_' + 'observation.csv')
+        self.none_counter = 0  ### initialization of the none counter used in the reward function
+        self.prediction = prediction  ### initialization of the prediction variable, that will store the prediction for the next observation
+        self.lstm_model = Prediction.load_lstm(
+            'gym_hpa/predictions/pred_models/lstm_models/online_trained')  ### loads the trained LSTM model for the predictions
 
     # revision here!
     def step(self, action):
@@ -279,6 +287,7 @@ class OnlineBoutique(gym.Env):
 
         # ACTIONS
         if action == ACTION_DO_NOTHING:
+            self.none_counter += 1 ### increments the none counter if the corresponding action is made
             # logging.info("[Take Action] SELECTED ACTION: DO NOTHING ...")
             pass
 
@@ -362,11 +371,44 @@ class OnlineBoutique(gym.Env):
         return reward
 
     def get_state(self):
+        """
+        Returns the current state of the environment
+        """
         # Observations: metrics - 3 Metrics!!
         # "number_pods"
         # "cpu"
         # "mem"
         # "requests"
+
+        ### DYNAMIC FORECAST ###
+        # TODO: comment this section if you want to apply static forecast
+
+        for deployment in self.deploymentList:
+            val_col = deployment.name + '_cpu_usage'  ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
+            pred = Prediction(date_col='date', val_col=val_col, current_value=int(deployment.cpu_usage),
+                              trainset=self.obs_csv + '_recent.csv')
+            if self.prediction == 'naive':
+                deployment.predictions = int(pred.naive_dynamic())
+            elif self.prediction == 'ses':
+                # if this is the first step of the episode, then we need to reset the predictions,
+                # as ses is highly dependent on the initial value. In that case, we use the static prediction
+                if self.current_step != 0:
+                    deployment.predictions = int(pred.ses_dynamic())
+            elif self.prediction == 'lstm':
+                deployment.predictions = int(pred.lstm_test_dynamic(self.lstm_model))
+            elif self.prediction == 'arima':
+                # Because the calculations of the parameters of the ARIMA model is computationally intensive, we perform
+                # every few steps, and we use the latest model for the predictions between the trainings.
+                if self.current_step % (5 * self.current_step + 1) == 0:
+                    arima_model = pred.arima_fit()  # performs the training
+                    with open('gym_hpa/predictions/pred_models/dynamic_arima_model.pkl', 'wb') as directory:
+                        pickle.dump(arima_model, directory)  # saves the trained model in the corresponding directory
+                # load the trained model
+                with open('gym_hpa/predictions/pred_models/dynamic_arima_model.pkl', 'rb') as directory:
+                    model = pickle.load(directory)
+                deployment.predictions = int(pred.arima_dynamic(model))
+            elif self.prediction == 'average':
+                deployment.predictions = int(pred.average_dynamic())
 
         # Return ob
         ob = (
@@ -412,12 +454,25 @@ class OnlineBoutique(gym.Env):
                 self.deploymentList[ID_checkout_service].cpu_usage, self.deploymentList[ID_checkout_service].mem_usage,
                 self.deploymentList[ID_checkout_service].received_traffic,
                 self.deploymentList[ID_checkout_service].transmit_traffic,
+                self.deploymentList[ID_checkout_service].predictions,
                 self.deploymentList[ID_frontend].num_pods, self.deploymentList[ID_frontend].desired_replicas,
                 self.deploymentList[ID_frontend].cpu_usage, self.deploymentList[ID_frontend].mem_usage,
                 self.deploymentList[ID_frontend].received_traffic, self.deploymentList[ID_frontend].transmit_traffic,
                 self.deploymentList[ID_email].num_pods, self.deploymentList[ID_email].desired_replicas,
                 self.deploymentList[ID_email].cpu_usage, self.deploymentList[ID_email].mem_usage,
                 self.deploymentList[ID_email].received_traffic, self.deploymentList[ID_email].transmit_traffic,
+                self.deploymentList[ID_recommendation].predictions,
+                self.deploymentList[ID_product_catalog].predictions,
+                self.deploymentList[ID_cart_service].predictions,
+                self.deploymentList[ID_ad_service].predictions,
+                self.deploymentList[ID_payment_service].predictions,
+                self.deploymentList[ID_shipping_service].predictions,
+                self.deploymentList[ID_currency_service].predictions,
+                self.deploymentList[ID_redis_cart].predictions,
+                self.deploymentList[ID_checkout_service].predictions,
+                self.deploymentList[ID_frontend].predictions,
+                self.deploymentList[ID_email].predictions,
+
             )
 
         return ob
@@ -428,66 +483,77 @@ class OnlineBoutique(gym.Env):
                     self.min_pods,  # Number of Pods  -- 1) recommendationservice
                     self.min_pods,  # Desired Replicas
                     0,  # CPU Usage (in m)
+                    0,  ### Predicted CPU Usage (in m)
                     0,  # MEM Usage (in MiB)
                     0,  # Average Number of received traffic
                     0,  # Average Number of transmit traffic
                     self.min_pods,  # Number of Pods -- 2) productcatalogservice
                     self.min_pods,  # Desired Replicas
                     0,  # CPU Usage (in m)
+                    0,  ### Predicted CPU Usage (in m)
                     0,  # MEM Usage (in MiB)
                     0,  # Average Number of received traffic
                     0,  # Average Number of transmit traffic
                     self.min_pods,  # Number of Pods -- 3) cartservice
                     self.min_pods,  # Desired Replicas
                     0,  # CPU Usage (in m)
+                    0,  ### Predicted CPU Usage (in m)
                     0,  # MEM Usage (in MiB)
                     0,  # Average Number of received traffic
                     0,  # Average Number of transmit traffic
                     self.min_pods,  # Number of Pods -- 4) adservice
                     self.min_pods,  # Desired Replicas
                     0,  # CPU Usage (in m)
+                    0,  ### Predicted CPU Usage (in m)
                     0,  # MEM Usage (in MiB)
                     0,  # Average Number of received traffic
                     0,  # Average Number of transmit traffic
                     self.min_pods,  # Number of Pods -- 5) paymentservice
                     self.min_pods,  # Desired Replicas
                     0,  # CPU Usage (in m)
+                    0,  ### Predicted CPU Usage (in m)
                     0,  # MEM Usage (in MiB)
                     0,  # Average Number of received traffic
                     0,  # Average Number of transmit traffic
                     self.min_pods,  # Number of Pods -- 6) shippingservice
                     self.min_pods,  # Desired Replicas
                     0,  # CPU Usage (in m)
+                    0,  ### Predicted CPU Usage (in m)
                     0,  # MEM Usage (in MiB)
                     0,  # Average Number of received traffic
                     0,  # Average Number of transmit traffic
                     self.min_pods,  # Number of Pods -- 7) currencyservice
                     self.min_pods,  # Desired Replicas
                     0,  # CPU Usage (in m)
+                    0,  ### Predicted CPU Usage (in m)
                     0,  # MEM Usage (in MiB)
                     0,  # Average Number of received traffic
                     0,  # Average Number of transmit traffic
                     self.min_pods,  # Number of Pods -- 8) redis-cart
                     self.min_pods,  # Desired Replicas
                     0,  # CPU Usage (in m)
+                    0,  ### Predicted CPU Usage (in m)
                     0,  # MEM Usage (in MiB)
                     0,  # Average Number of received traffic
                     0,  # Average Number of transmit traffic
                     self.min_pods,  # Number of Pods -- 9) checkoutservice
                     self.min_pods,  # Desired Replicas
                     0,  # CPU Usage (in m)
+                    0,  ### Predicted CPU Usage (in m)
                     0,  # MEM Usage (in MiB)
                     0,  # Average Number of received traffic
                     0,  # Average Number of transmit traffic
                     self.min_pods,  # Number of Pods -- 10) frontend
                     self.min_pods,  # Desired Replicas
                     0,  # CPU Usage (in m)
+                    0,  ### Predicted CPU Usage (in m)
                     0,  # MEM Usage (in MiB)
                     0,  # Average Number of received traffic
                     0,  # Average Number of transmit traffic
                     self.min_pods,  # Number of Pods -- 11) emailservice
                     self.min_pods,  # Desired Replicas
                     0,  # CPU Usage (in m)
+                    0,  ### Predicted CPU Usage (in m)
                     0,  # MEM Usage (in MiB)
                     0,  # Average Number of received traffic
                     0,  # Average Number of transmit traffic
@@ -495,66 +561,77 @@ class OnlineBoutique(gym.Env):
                     self.max_pods,  # Number of Pods -- 1)
                     self.max_pods,  # Desired Replicas
                     get_max_cpu(),  # CPU Usage (in m)
+                    get_max_cpu(),  ### Predicted CPU Usage (in m)
                     get_max_mem(),  # MEM Usage (in MiB)
                     get_max_traffic(),  # Average Number of received traffic
                     get_max_traffic(),  # Average Number of transmit traffic
                     self.max_pods,  # Number of Pods -- 2)
                     self.max_pods,  # Desired Replicas
                     get_max_cpu(),  # CPU Usage (in m)
+                    get_max_cpu(),  ### Predicted CPU Usage (in m)
                     get_max_mem(),  # MEM Usage (in MiB)
                     get_max_traffic(),  # Average Number of received traffic
                     get_max_traffic(),  # Average Number of transmit traffic
                     self.max_pods,  # Number of Pods -- 3)
                     self.max_pods,  # Desired Replicas
                     get_max_cpu(),  # CPU Usage (in m)
+                    get_max_cpu(),  ### Predicted CPU Usage (in m)
                     get_max_mem(),  # MEM Usage (in MiB)
                     get_max_traffic(),  # Average Number of received traffic
                     get_max_traffic(),  # Average Number of transmit traffic
                     self.max_pods,  # Number of Pods -- 4)
                     self.max_pods,  # Desired Replicas
                     get_max_cpu(),  # CPU Usage (in m)
+                    get_max_cpu(),  ### Predicted CPU Usage (in m)
                     get_max_mem(),  # MEM Usage (in MiB)
                     get_max_traffic(),  # Average Number of received traffic
                     get_max_traffic(),  # Average Number of transmit traffic
                     self.max_pods,  # Number of Pods -- 5)
                     self.max_pods,  # Desired Replicas
                     get_max_cpu(),  # CPU Usage (in m)
+                    get_max_cpu(),  ### Predicted CPU Usage (in m)
                     get_max_mem(),  # MEM Usage (in MiB)
                     get_max_traffic(),  # Average Number of received traffic
                     get_max_traffic(),  # Average Number of transmit traffic
                     self.max_pods,  # Number of Pods -- 6)
                     self.max_pods,  # Desired Replicas
                     get_max_cpu(),  # CPU Usage (in m)
+                    get_max_cpu(),  ### Predicted CPU Usage (in m)
                     get_max_mem(),  # MEM Usage (in MiB)
                     get_max_traffic(),  # Average Number of received traffic
                     get_max_traffic(),  # Average Number of transmit traffic
                     self.max_pods,  # Number of Pods -- 7)
                     self.max_pods,  # Desired Replicas
                     get_max_cpu(),  # CPU Usage (in m)
+                    get_max_cpu(),  ### Predicted CPU Usage (in m)
                     get_max_mem(),  # MEM Usage (in MiB)
                     get_max_traffic(),  # Average Number of received traffic
                     get_max_traffic(),  # Average Number of transmit traffic
                     self.max_pods,  # Number of Pods -- 8)
                     self.max_pods,  # Desired Replicas
                     get_max_cpu(),  # CPU Usage (in m)
+                    get_max_cpu(),  ### Predicted CPU Usage (in m)
                     get_max_mem(),  # MEM Usage (in MiB)
                     get_max_traffic(),  # Average Number of received traffic
                     get_max_traffic(),  # Average Number of transmit traffic
                     self.max_pods,  # Number of Pods -- 9)
                     self.max_pods,  # Desired Replicas
                     get_max_cpu(),  # CPU Usage (in m)
+                    get_max_cpu(),  ### Predicted CPU Usage (in m)
                     get_max_mem(),  # MEM Usage (in MiB)
                     get_max_traffic(),  # Average Number of received traffic
                     get_max_traffic(),  # Average Number of transmit traffic
                     self.max_pods,  # Number of Pods -- 10)
                     self.max_pods,  # Desired Replicas
                     get_max_cpu(),  # CPU Usage (in m)
+                    get_max_cpu(),  ### Predicted CPU Usage (in m)
                     get_max_mem(),  # MEM Usage (in MiB)
                     get_max_traffic(),  # Average Number of received traffic
                     get_max_traffic(),  # Average Number of transmit traffic
                     self.max_pods,  # Number of Pods -- 11)
                     self.max_pods,  # Desired Replicas
                     get_max_cpu(),  # CPU Usage (in m)
+                    get_max_cpu(),  ### Predicted CPU Usage (in m)
                     get_max_mem(),  # MEM Usage (in MiB)
                     get_max_traffic(),  # Average Number of received traffic
                     get_max_traffic(),  # Average Number of transmit traffic
@@ -568,9 +645,15 @@ class OnlineBoutique(gym.Env):
         reward = 0
         if self.goal_reward == COST:
             reward = get_cost_reward(self.deploymentList)
+            ### none penalty: if the agent uses more than twice the none action without achieving the highest reward, penaltize it increasingly.
+            if reward != self.num_apps and self.none_counter > 2:
+                reward = -self.none_counter
         elif self.goal_reward == LATENCY:
             reward = get_latency_reward_online_boutique(ID_recommendation, self.deploymentList)
-
+            ### none penalty: if the agent uses more than twice the none action, penaltize it increasingly.
+            ### No second condition was added in this case like above, because spamming the none action sometimes bore good latency values.
+            if self.none_counter>2:
+                reward = -self.none_counter * 100
         return reward
 
     def simulation_update(self):
@@ -582,6 +665,8 @@ class OnlineBoutique(gym.Env):
             for i in range(len(DEPLOYMENTS)):
                 self.deploymentList[i].num_pods = int(sample[DEPLOYMENTS[i] + '_num_pods'].values[0])
                 self.deploymentList[i].num_previous_pods = int(sample[DEPLOYMENTS[i] + '_num_pods'].values[0])
+                self.deploymentList[i].predictions = int(sample[DEPLOYMENTS[i] + '_cpu_usage_predictions'].values[0])  ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
+
 
         else:
             pods = []
@@ -615,13 +700,14 @@ class OnlineBoutique(gym.Env):
             self.deploymentList[i].received_traffic = int(sample[DEPLOYMENTS[i] + '_traffic_in'].values[0])
             self.deploymentList[i].transmit_traffic = int(sample[DEPLOYMENTS[i] + '_traffic_out'].values[0])
             self.deploymentList[i].latency = float("{:.3f}".format(sample[DEPLOYMENTS[i] + '_latency'].values[0]))
+            self.deploymentList[i].predictions = float(sample[DEPLOYMENTS[i] + '_cpu_usage_predictions'].values[0])  ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
 
         for d in self.deploymentList:
             # Update Desired replicas
             d.update_replicas()
         return
 
-    def save_obs_to_csv(self, obs_file, obs, date, latency):
+    def save_obs_to_csv(self, obs_file, obs, date, latency, past_horizon=62): ###
         file = open(obs_file, 'a+', newline='')  # append
         # file = open(file_name, 'w', newline='') # new
         fields = []
@@ -631,10 +717,122 @@ class OnlineBoutique(gym.Env):
                 fields.append(d.name + '_num_pods')
                 fields.append(d.name + '_desired_replicas')
                 fields.append(d.name + '_cpu_usage')
+                fields.append(d.name + '_cpu_usage_predictions') ### MODIFY HERE TO CHANGE PREDICTION TARGET
                 fields.append(d.name + '_mem_usage')
                 fields.append(d.name + '_traffic_in')
                 fields.append(d.name + '_traffic_out')
                 fields.append(d.name + '_latency')
+
+            ###
+            new_entry = {'date': date,
+                 'recommendationservice_num_pods': int("{}".format(obs[0])),
+                 'recommendationservice_desired_replicas': int("{}".format(obs[1])),
+                 'recommendationservice_cpu_usage': int("{}".format(obs[2])),
+                 'recommendationservice_cpu_usage_predictions': float("{}".format(obs[66])),  ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
+                 'recommendationservice_mem_usage': int("{}".format(obs[3])),
+                 'recommendationservice_traffic_in': int("{}".format(obs[4])),
+                 'recommendationservice_traffic_out': int("{}".format(obs[5])),
+                 'recommendationservice_latency': float("{:.3f}".format(latency)),
+
+
+                 'productcatalogservice_num_pods': int("{}".format(obs[6])),
+                 'productcatalogservice_desired_replicas': int("{}".format(obs[7])),
+                 'productcatalogservice_cpu_usage': int("{}".format(obs[8])),
+                 'productcatalogservice_cpu_usage_predictions': float("{}".format(obs[67])), ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
+                 'productcatalogservice_mem_usage': int("{}".format(obs[9])),
+                 'productcatalogservice_traffic_in': int("{}".format(obs[10])),
+                 'productcatalogservice_traffic_out': int("{}".format(obs[11])),
+                 'productcatalogservice_latency': float("{:.3f}".format(latency)),
+
+                 'cartservice_num_pods': int("{}".format(obs[12])),
+                 'cartservice_desired_replicas': int("{}".format(obs[13])),
+                 'cartservice_cpu_usage': int("{}".format(obs[14])),
+                 'cartservice_cpu_usage_predictions': float("{}".format(obs[68])), ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
+                 'cartservice_mem_usage': int("{}".format(obs[15])),
+                 'cartservice_traffic_in': int("{}".format(obs[16])),
+                 'cartservice_traffic_out': int("{}".format(obs[17])),
+                 'cartservice_latency': float("{:.3f}".format(latency)),
+
+                 'adservice_num_pods': int("{}".format(obs[18])),
+                 'adservice_desired_replicas': int("{}".format(obs[19])),
+                 'adservice_cpu_usage': int("{}".format(obs[20])),
+                 'adservice_cpu_usage_predictions': float("{}".format(obs[69])),
+                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
+                 'adservice_mem_usage': int("{}".format(obs[21])),
+                 'adservice_traffic_in': int("{}".format(obs[22])),
+                 'adservice_traffic_out': int("{}".format(obs[23])),
+                 'adservice_latency': float("{:.3f}".format(latency)),
+
+                 'paymentservice_num_pods': int("{}".format(obs[24])),
+                 'paymentservice_desired_replicas': int("{}".format(obs[25])),
+                 'paymentservice_cpu_usage': int("{}".format(obs[26])),
+                 'paymentservice_cpu_usage_predictions': float("{}".format(obs[70])),
+                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
+                 'paymentservice_mem_usage': int("{}".format(obs[27])),
+                 'paymentservice_traffic_in': int("{}".format(obs[28])),
+                 'paymentservice_traffic_out': int("{}".format(obs[29])),
+                 'paymentservice_latency': float("{:.3f}".format(latency)),
+
+                 'shippingservice_num_pods': int("{}".format(obs[30])),
+                 'shippingservice_desired_replicas': int("{}".format(obs[31])),
+                 'shippingservice_cpu_usage': int("{}".format(obs[32])),
+                 'shippingservice_cpu_usage_predictions': float("{}".format(obs[71])),
+                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
+                 'shippingservice_mem_usage': int("{}".format(obs[33])),
+                 'shippingservice_traffic_in': int("{}".format(obs[34])),
+                 'shippingservice_traffic_out': int("{}".format(obs[35])),
+                 'shippingservice_latency': float("{:.3f}".format(latency)),
+
+                 'currencyservice_num_pods': int("{}".format(obs[36])),
+                 'currencyservice_desired_replicas': int("{}".format(obs[37])),
+                 'currencyservice_cpu_usage': int("{}".format(obs[38])),
+                 'currencyservice_cpu_usage_predictions': float("{}".format(obs[72])),
+                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
+                 'currencyservice_mem_usage': int("{}".format(obs[39])),
+                 'currencyservice_traffic_in': int("{}".format(obs[40])),
+                 'currencyservice_traffic_out': int("{}".format(obs[41])),
+                 'currencyservice_latency': float("{:.3f}".format(latency)),
+
+                 'redis-cart_num_pods': int("{}".format(obs[42])),
+                 'redis-cart_desired_replicas': int("{}".format(obs[43])),
+                 'redis-cart_cpu_usage': int("{}".format(obs[44])),
+                 'redis-cart_cpu_usage_predictions': float("{}".format(obs[73])),
+                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
+                 'redis-cart_mem_usage': int("{}".format(obs[45])),
+                 'redis-cart_traffic_in': int("{}".format(obs[46])),
+                 'redis-cart_traffic_out': int("{}".format(obs[47])),
+                 'redis-cart_latency': float("{:.3f}".format(latency)),
+
+                 'checkoutservice_num_pods': int("{}".format(obs[48])),
+                 'checkoutservice_desired_replicas': int("{}".format(obs[49])),
+                 'checkoutservice_cpu_usage': int("{}".format(obs[50])),
+                 'checkoutservice_cpu_usage_predictions': float("{}".format(obs[74])),
+                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
+                 'checkoutservice_mem_usage': int("{}".format(obs[51])),
+                 'checkoutservice_traffic_in': int("{}".format(obs[52])),
+                 'checkoutservice_traffic_out': int("{}".format(obs[53])),
+                 'checkoutservice_latency': float("{:.3f}".format(latency)),
+
+                 'frontend_num_pods': int("{}".format(obs[54])),
+                 'frontend_desired_replicas': int("{}".format(obs[55])),
+                 'frontend_cpu_usage': int("{}".format(obs[56])),
+                 'frontend_cpu_usage_predictions': float("{}".format(obs[75])),
+                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
+                 'frontend_mem_usage': int("{}".format(obs[57])),
+                 'frontend_traffic_in': int("{}".format(obs[58])),
+                 'frontend_traffic_out': int("{}".format(obs[59])),
+                 'frontend_latency': float("{:.3f}".format(latency)),
+
+                 'emailservice_num_pods': int("{}".format(obs[60])),
+                 'emailservice_desired_replicas': int("{}".format(obs[61])),
+                 'emailservice_cpu_usage': int("{}".format(obs[62])),
+                 'emailservice_cpu_usage_predictions': float("{}".format(obs[76])),
+                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
+                 'emailservice_mem_usage': int("{}".format(obs[63])),
+                 'emailservice_traffic_in': int("{}".format(obs[64])),
+                 'emailservice_traffic_out': int("{}".format(obs[65])),
+                 'emailservice_latency': float("{:.3f}".format(latency))
+                 }
 
             '''
             fields = ['date', 'redis-leader_num_pods', 'redis-leader_desired_replicas', 'redis-leader_cpu_usage', 'redis-leader_mem_usage',
@@ -653,94 +851,25 @@ class OnlineBoutique(gym.Env):
             # "redis-cart", "checkoutservice", "frontend", "emailservice"]
 
             writer.writerow(
-                {'date': date,
-                 'recommendationservice_num_pods': int("{}".format(obs[0])),
-                 'recommendationservice_desired_replicas': int("{}".format(obs[1])),
-                 'recommendationservice_cpu_usage': int("{}".format(obs[2])),
-                 'recommendationservice_mem_usage': int("{}".format(obs[3])),
-                 'recommendationservice_traffic_in': int("{}".format(obs[4])),
-                 'recommendationservice_traffic_out': int("{}".format(obs[5])),
-                 'recommendationservice_latency': float("{:.3f}".format(latency)),
-
-                 'productcatalogservice_num_pods': int("{}".format(obs[6])),
-                 'productcatalogservice_desired_replicas': int("{}".format(obs[7])),
-                 'productcatalogservice_cpu_usage': int("{}".format(obs[8])),
-                 'productcatalogservice_mem_usage': int("{}".format(obs[9])),
-                 'productcatalogservice_traffic_in': int("{}".format(obs[10])),
-                 'productcatalogservice_traffic_out': int("{}".format(obs[11])),
-                 'productcatalogservice_latency': float("{:.3f}".format(latency)),
-
-                 'cartservice_num_pods': int("{}".format(obs[12])),
-                 'cartservice_desired_replicas': int("{}".format(obs[13])),
-                 'cartservice_cpu_usage': int("{}".format(obs[14])),
-                 'cartservice_mem_usage': int("{}".format(obs[15])),
-                 'cartservice_traffic_in': int("{}".format(obs[16])),
-                 'cartservice_traffic_out': int("{}".format(obs[17])),
-                 'cartservice_latency': float("{:.3f}".format(latency)),
-
-                 'adservice_num_pods': int("{}".format(obs[18])),
-                 'adservice_desired_replicas': int("{}".format(obs[19])),
-                 'adservice_cpu_usage': int("{}".format(obs[20])),
-                 'adservice_mem_usage': int("{}".format(obs[21])),
-                 'adservice_traffic_in': int("{}".format(obs[22])),
-                 'adservice_traffic_out': int("{}".format(obs[23])),
-                 'adservice_latency': float("{:.3f}".format(latency)),
-
-                 'paymentservice_num_pods': int("{}".format(obs[24])),
-                 'paymentservice_desired_replicas': int("{}".format(obs[25])),
-                 'paymentservice_cpu_usage': int("{}".format(obs[26])),
-                 'paymentservice_mem_usage': int("{}".format(obs[27])),
-                 'paymentservice_traffic_in': int("{}".format(obs[28])),
-                 'paymentservice_traffic_out': int("{}".format(obs[29])),
-                 'paymentservice_latency': float("{:.3f}".format(latency)),
-
-                 'shippingservice_num_pods': int("{}".format(obs[30])),
-                 'shippingservice_desired_replicas': int("{}".format(obs[31])),
-                 'shippingservice_cpu_usage': int("{}".format(obs[32])),
-                 'shippingservice_mem_usage': int("{}".format(obs[33])),
-                 'shippingservice_traffic_in': int("{}".format(obs[34])),
-                 'shippingservice_traffic_out': int("{}".format(obs[35])),
-                 'shippingservice_latency': float("{:.3f}".format(latency)),
-
-                 'currencyservice_num_pods': int("{}".format(obs[36])),
-                 'currencyservice_desired_replicas': int("{}".format(obs[37])),
-                 'currencyservice_cpu_usage': int("{}".format(obs[38])),
-                 'currencyservice_mem_usage': int("{}".format(obs[39])),
-                 'currencyservice_traffic_in': int("{}".format(obs[40])),
-                 'currencyservice_traffic_out': int("{}".format(obs[41])),
-                 'currencyservice_latency': float("{:.3f}".format(latency)),
-
-                 'redis-cart_num_pods': int("{}".format(obs[42])),
-                 'redis-cart_desired_replicas': int("{}".format(obs[43])),
-                 'redis-cart_cpu_usage': int("{}".format(obs[44])),
-                 'redis-cart_mem_usage': int("{}".format(obs[45])),
-                 'redis-cart_traffic_in': int("{}".format(obs[46])),
-                 'redis-cart_traffic_out': int("{}".format(obs[47])),
-                 'redis-cart_latency': float("{:.3f}".format(latency)),
-
-                 'checkoutservice_num_pods': int("{}".format(obs[48])),
-                 'checkoutservice_desired_replicas': int("{}".format(obs[49])),
-                 'checkoutservice_cpu_usage': int("{}".format(obs[50])),
-                 'checkoutservice_mem_usage': int("{}".format(obs[51])),
-                 'checkoutservice_traffic_in': int("{}".format(obs[52])),
-                 'checkoutservice_traffic_out': int("{}".format(obs[53])),
-                 'checkoutservice_latency': float("{:.3f}".format(latency)),
-
-                 'frontend_num_pods': int("{}".format(obs[54])),
-                 'frontend_desired_replicas': int("{}".format(obs[55])),
-                 'frontend_cpu_usage': int("{}".format(obs[56])),
-                 'frontend_mem_usage': int("{}".format(obs[57])),
-                 'frontend_traffic_in': int("{}".format(obs[58])),
-                 'frontend_traffic_out': int("{}".format(obs[59])),
-                 'frontend_latency': float("{:.3f}".format(latency)),
-
-                 'emailservice_num_pods': int("{}".format(obs[60])),
-                 'emailservice_desired_replicas': int("{}".format(obs[61])),
-                 'emailservice_cpu_usage': int("{}".format(obs[62])),
-                 'emailservice_mem_usage': int("{}".format(obs[63])),
-                 'emailservice_traffic_in': int("{}".format(obs[64])),
-                 'emailservice_traffic_out': int("{}".format(obs[65])),
-                 'emailservice_latency': float("{:.3f}".format(latency))
-                 }
+                new_entry
             )
+
+            ### Implementation of the recent observation space. It keeps the last (past_horizon) values.
+            recent_file = open(obs_file + '_recent.csv', 'a+', newline='')
+
+            with recent_file:
+                recent_writer = csv.DictWriter(recent_file, fieldnames=fields)
+                recent_writer.writerow(new_entry)
+
+                # Read the current lines from the small file
+                recent_file.seek(0)
+                lines = recent_file.readlines()
+
+                # If the number of lines exceeds past_horizon, remove the first line
+                if len(lines) > past_horizon - 1:
+                    lines.pop(1)
+                    recent_file.seek(0)
+                    recent_file.truncate()
+                    recent_file.writelines(lines)
+            return
         return
