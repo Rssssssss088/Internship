@@ -444,9 +444,10 @@ class OnlineBoutique(gym.Env):
              #   self.deploymentList[ID_email].desired_replicas,
                 self.deploymentList[ID_email].cpu_usage, self.deploymentList[ID_email].mem_usage,
               #  self.deploymentList[ID_email].received_traffic, self.deploymentList[ID_email].transmit_traffic,
+                self.none_counter ### Added none counter to observation space
             )
 
-        return ob
+        return self.normalize(ob) ### Normalization ON
 
     def get_observation_space(self):
             return spaces.Box(
@@ -517,6 +518,7 @@ class OnlineBoutique(gym.Env):
                     0,  # MEM Usage (in MiB)
               #      0,  # Average Number of received traffic
                #     0,  # Average Number of transmit traffic
+                    0, ### None Counter
                 ]), high=np.array([
                     self.max_pods,  # Number of Pods -- 1)
            #         self.max_pods,  # Desired Replicas
@@ -584,6 +586,7 @@ class OnlineBoutique(gym.Env):
                     get_max_mem(),  # MEM Usage (in MiB)
             #        get_max_traffic(),  # Average Number of received traffic
              #       get_max_traffic(),  # Average Number of transmit traffic
+                    25  ### None Counter
                 ]),
                 dtype=np.float32
             )
@@ -677,6 +680,7 @@ class OnlineBoutique(gym.Env):
         #        fields.append(d.name + '_traffic_in')
          #       fields.append(d.name + '_traffic_out')
           #      fields.append(d.name + '_latency')
+            fields.append("none_counter")
 
             '''
             fields = ['date', 'redis-leader_num_pods', 'redis-leader_desired_replicas', 'redis-leader_cpu_usage', 'redis-leader_mem_usage',
@@ -784,6 +788,7 @@ class OnlineBoutique(gym.Env):
           ##       'emailservice_traffic_in': int("{}".format(obs[64])),
             #     'emailservice_traffic_out': int("{}".format(obs[65])),
              #    'emailservice_latency': float("{:.3f}".format(latency))
+                 'none_counter': float("{}".format(obs[33]))
                  }
             )
         return

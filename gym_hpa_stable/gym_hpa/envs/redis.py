@@ -383,9 +383,10 @@ class Redis(gym.Env):
             self.deploymentList[1].cpu_usage,
             self.deploymentList[1].mem_usage,
           #  self.deploymentList[1].received_traffic, self.deploymentList[1].transmit_traffic,
+            self.none_counter, ### Added none counter to observation space
         )
 
-        return self.normalize(ob)
+        return self.normalize(ob) ### Normalization ON
 
     def get_observation_space(self):
         return spaces.Box(
@@ -402,6 +403,7 @@ class Redis(gym.Env):
                     0,  # MEM Usage (in MiB)
                   #  0,  # Average Number of received traffic
                   #  0,  # Average Number of transmit traffic
+                    0, ### None counter
                 ]), high=np.array([
                     self.max_pods,  # Number of Pods -- master metrics
                   #  self.max_pods,  # Desired Replicas
@@ -415,6 +417,7 @@ class Redis(gym.Env):
                     get_max_mem(),  # MEM Usage (in MiB)
                 #    get_max_traffic(),  # Average Number of received traffic
                  #   get_max_traffic(),  # Average Number of transmit traffic
+                    25,  ### None Counter
                 ]),
                 dtype=np.float32
             )
@@ -428,8 +431,8 @@ class Redis(gym.Env):
                 reward = -self.none_counter
         elif self.goal_reward == LATENCY:
             reward = get_latency_reward_redis(ID_MASTER, self.deploymentList)
-            if self.none_counter > 2:
-                reward = -self.none_counter*100
+            if self.none_counter > 2 and reward == -250:
+                reward = -self.none_counter*250
         return reward
 
     def simulation_update(self, action):
@@ -534,6 +537,7 @@ class Redis(gym.Env):
               #  fields.append(d.name + '_traffic_in')
               #  fields.append(d.name + '_traffic_out')
                 fields.append(d.name + '_latency')
+            fields.append('none_counter') ### Added none counter to observation space
 
             '''
             fields = ['date', 'redis-leader_num_pods', 'redis-leader_desired_replicas', 'redis-leader_cpu_usage', 'redis-leader_mem_usage',
@@ -561,7 +565,8 @@ class Redis(gym.Env):
                  'redis-follower_mem_usage': float("{}".format(obs[5])),
               #   'redis-follower_traffic_in': float("{}".format(obs[10])),
               #   'redis-follower_traffic_out': float("{}".format(obs[11])),
-                 'redis-follower_latency': float("{:.3f}".format(latency))
+                 'redis-follower_latency': float("{:.3f}".format(latency)),
+                 'none_counter': float("{}".format(obs[6])) ### Added none counter to observation space
                  }
             )
         return
