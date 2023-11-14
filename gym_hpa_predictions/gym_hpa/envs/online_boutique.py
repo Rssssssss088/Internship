@@ -654,15 +654,16 @@ class OnlineBoutique(gym.Env):
             ### none penalty: if the agent uses more than twice the none action without achieving the highest reward, penaltize it increasingly.
             if reward != self.num_apps and self.none_counter > 2:
                 reward = -self.none_counter
-        elif self.goal_reward == LATENCY:
-            reward = get_latency_reward_online_boutique(ID_recommendation, self.deploymentList)
-            ### none penalty: if the agent uses more than twice the none action, penaltize it increasingly.
-            ### No second condition was added in this case like above, because spamming the none action sometimes bore good latency values.
-            if self.none_counter>2:
-                reward = -self.none_counter * 100
+
+            elif self.goal_reward == LATENCY:
+                reward = get_latency_reward_online_boutique(ID_recommendation, self.deploymentList)
+                if self.none_counter > 2 and reward == -250:
+                    reward = -self.none_counter * 250
+            return reward
+
         return reward
 
-    def simulation_update(self):
+    def simulation_update(self, action):
         if self.current_step == 1:
             # Get a random sample!
             sample = self.df.sample()
@@ -675,30 +676,65 @@ class OnlineBoutique(gym.Env):
 
 
         else:
-            pods = []
-            previous_pods = []
-            diff = []
-            for i in range(len(DEPLOYMENTS)):
-                pods.append(self.deploymentList[i].num_pods)
-                previous_pods.append(self.deploymentList[i].num_previous_pods)
-                aux = pods[i] - previous_pods[i]
-                diff.append(aux)
-                self.df['diff-' + DEPLOYMENTS[i]] = self.df[DEPLOYMENTS[i] + '_num_pods'].diff()
+            ### New Simulation ###
 
-            # print(pods)
-            # print(previous_pods)
-            # print(diff)
-            # print(self.df_aggr)
+            action_num = action[ID_DEPLOYMENTS]
+            other_num = 7 ### the frontend
 
-            data = 0
-            for i in range(len(DEPLOYMENTS)):
-                data = self.df.loc[self.df[DEPLOYMENTS[i] + '_num_pods'] == pods[i]]
-                data = data.loc[data['diff-' + DEPLOYMENTS[i]] == diff[i]]
-                if data.size == 0:
-                    data = self.df.loc[self.df[DEPLOYMENTS[i] + '_num_pods'] == pods[i]]
+            action_pods = self.deploymentList[action_num].num_pods
+            action_previous_pods = self.deploymentList[action_num].num_previous_pods
+            other_pods = self.deploymentList[other_num].num_pods
+            other_previous_pods = self.deploymentList[other_num].num_previous_pods
 
-            sample = data.sample()
+            diff_action = action_pods - action_previous_pods
+            diff_other = other_pods - other_previous_pods
+
+            action_deployment = DEPLOYMENTS[action_num]
+            other_deployment = DEPLOYMENTS[other_num]
+
+            self.df['diff-' + action_deployment] = self.df[action_deployment + '_num_pods'].diff()
+            self.df['diff-' + other_deployment] = self.df[other_deployment + '_num_pods'].diff()
+
+            data = self.df.loc[self.df[action_deployment + '_num_pods'] == action_pods]
+            next_data = data.loc[data[other_deployment + '_num_pods'] == other_pods]
+
+            # action_pods -> y, other_pods -> n
+            if next_data.size == 0:
+                next_data = data.loc[data['diff-' + action_deployment] == diff_action]
+
+                if next_data.size == 0:
+                    # print('# action_pods -> y, other_pods -> n, diff-action -> n, diff-other -> n')
+                    sample = data.sample()
+                else:
+                    # print('# action_pods -> y, other_pods -> n, diff-action -> y, diff-other -> n')
+                    sample = next_data.sample()
+
+            else:
+                # action_pods->y, other_pods->y
+                new_data = next_data.loc[next_data['diff-' + action_deployment] == diff_action]
+
+                if new_data.size == 0:
+                    # action_pods -> y, other_pods -> y, diff-action -> n
+                    next_data = next_data.loc[next_data['diff-' + other_deployment] == diff_other]
+
+                    if next_data.size == 0:
+                        # print('# action_pods -> y, other_pods -> y, diff-action -> n, diff-other -> n')
+                        sample = data.sample()
+                    else:
+                        # print('# action_pods -> y, other_pods -> y, diff-action -> n, diff-other -> y')
+                        sample = next_data.sample()
+                else:
+                    # action_pods -> y, other_pods -> y, diff-action -> y
+                    next_data = new_data.loc[new_data['diff-' + other_deployment] == diff_other]
+                    if next_data.size == 0:
+                        # print('# action_pods -> y, other_pods -> y, diff-action -> y, diff-other -> n')
+                        sample = new_data.sample()
+                    else:
+                        # print('# action_pods -> y, other_pods -> y, diff-action -> y, diff-other -> y')
+                        sample = next_data.sample()
+
             # print(sample)
+
 
         for i in range(len(DEPLOYMENTS)):
             self.deploymentList[i].cpu_usage = int(sample[DEPLOYMENTS[i] + '_cpu_usage'].values[0])
@@ -731,116 +767,95 @@ class OnlineBoutique(gym.Env):
             fields.append('none_counter')
 
             ###
-            new_entry = {'date': date,
-                 'recommendationservice_num_pods': int("{}".format(obs[0])),
-               #  'recommendationservice_desired_replicas': int("{}".format(obs[1])),
-                 'recommendationservice_cpu_usage': int("{}".format(obs[2])),
-                 'recommendationservice_cpu_usage_predictions': float("{}".format(obs[66])),  ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
-                 'recommendationservice_mem_usage': int("{}".format(obs[3])),
-                # 'recommendationservice_traffic_in': int("{}".format(obs[4])),
-                # 'recommendationservice_traffic_out': int("{}".format(obs[5])),
-                 'recommendationservice_latency': float("{:.3f}".format(latency)),
+            new_entry =                 {'date': date,
+                 'recommendationservice_num_pods': float("{}".format(obs[0])),
+    #             'recommendationservice_desired_replicas': int("{}".format(obs[1])),
+                 'recommendationservice_cpu_usage': float("{}".format(obs[1])),
+                 'recommendationservice_mem_usage': float("{}".format(obs[2])),
+  #               'recommendationservice_traffic_in': int("{}".format(obs[4])),
+   #              'recommendationservice_traffic_out': int("{}".format(obs[5])),
+    #             'recommendationservice_latency': float("{:.3f}".format(latency)),
 
+                 'productcatalogservice_num_pods': float("{}".format(obs[3])),
+      #           'productcatalogservice_desired_replicas': int("{}".format(obs[3])),
+                 'productcatalogservice_cpu_usage': float("{}".format(obs[4])),
+                 'productcatalogservice_mem_usage': float("{}".format(obs[5])),
+      #           'productcatalogservice_traffic_in': int("{}".format(obs[10])),
+       #          'productcatalogservice_traffic_out': int("{}".format(obs[11])),
+        #         'productcatalogservice_latency': float("{:.3f}".format(latency)),
 
-                 'productcatalogservice_num_pods': int("{}".format(obs[6])),
-               #  'productcatalogservice_desired_replicas': int("{}".format(obs[7])),
-                 'productcatalogservice_cpu_usage': int("{}".format(obs[8])),
-                 'productcatalogservice_cpu_usage_predictions': float("{}".format(obs[67])), ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
-                 'productcatalogservice_mem_usage': int("{}".format(obs[9])),
-               #  'productcatalogservice_traffic_in': int("{}".format(obs[10])),
-               #  'productcatalogservice_traffic_out': int("{}".format(obs[11])),
-                 'productcatalogservice_latency': float("{:.3f}".format(latency)),
+                 'cartservice_num_pods': float("{}".format(obs[6])),
+         #        'cartservice_desired_replicas': int("{}".format(obs[15])),
+                 'cartservice_cpu_usage': float("{}".format(obs[7])),
+                 'cartservice_mem_usage': float("{}".format(obs[8])),
+   #              'cartservice_traffic_in': int("{}".format(obs[16])),
+    #             'cartservice_traffic_out': int("{}".format(obs[17])),
+     #            'cartservice_latency': float("{:.3f}".format(latency)),
 
-                 'cartservice_num_pods': int("{}".format(obs[12])),
-               #  'cartservice_desired_replicas': int("{}".format(obs[13])),
-                 'cartservice_cpu_usage': int("{}".format(obs[14])),
-                 'cartservice_cpu_usage_predictions': float("{}".format(obs[68])), ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
-                 'cartservice_mem_usage': int("{}".format(obs[15])),
-              #   'cartservice_traffic_in': int("{}".format(obs[16])),
-              #   'cartservice_traffic_out': int("{}".format(obs[17])),
-                 'cartservice_latency': float("{:.3f}".format(latency)),
+                 'adservice_num_pods': float("{}".format(obs[9])),
+          #       'adservice_desired_replicas': int("{}".format(obs[7])),
+                 'adservice_cpu_usage': float("{}".format(obs[10])),
+                 'adservice_mem_usage': float("{}".format(obs[11])),
+        #         'adservice_traffic_in': int("{}".format(obs[22])),
+         #        'adservice_traffic_out': int("{}".format(obs[23])),
+          #       'adservice_latency': float("{:.3f}".format(latency)),
 
-                 'adservice_num_pods': int("{}".format(obs[18])),
-              #   'adservice_desired_replicas': int("{}".format(obs[19])),
-                 'adservice_cpu_usage': int("{}".format(obs[20])),
-                 'adservice_cpu_usage_predictions': float("{}".format(obs[69])),
-                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
-                 'adservice_mem_usage': int("{}".format(obs[21])),
-               #  'adservice_traffic_in': int("{}".format(obs[22])),
-               #  'adservice_traffic_out': int("{}".format(obs[23])),
-                 'adservice_latency': float("{:.3f}".format(latency)),
-
-                 'paymentservice_num_pods': int("{}".format(obs[24])),
-               #  'paymentservice_desired_replicas': int("{}".format(obs[25])),
-                 'paymentservice_cpu_usage': int("{}".format(obs[26])),
-                 'paymentservice_cpu_usage_predictions': float("{}".format(obs[70])),
-                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
-                 'paymentservice_mem_usage': int("{}".format(obs[27])),
-               #  'paymentservice_traffic_in': int("{}".format(obs[28])),
+                 'paymentservice_num_pods': float("{}".format(obs[12])),
+          #       'paymentservice_desired_replicas': int("{}".format(obs[9])),
+                 'paymentservice_cpu_usage': float("{}".format(obs[13])),
+                 'paymentservice_mem_usage': float("{}".format(obs[14])),
+              #   'paymentservice_traffic_in': int("{}".format(obs[28])),
                #  'paymentservice_traffic_out': int("{}".format(obs[29])),
-                 'paymentservice_latency': float("{:.3f}".format(latency)),
+           #      'paymentservice_latency': float("{:.3f}".format(latency)),
 
-                 'shippingservice_num_pods': int("{}".format(obs[30])),
-                # 'shippingservice_desired_replicas': int("{}".format(obs[31])),
-                 'shippingservice_cpu_usage': int("{}".format(obs[32])),
-                 'shippingservice_cpu_usage_predictions': float("{}".format(obs[71])),
-                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
-                 'shippingservice_mem_usage': int("{}".format(obs[33])),
-               #  'shippingservice_traffic_in': int("{}".format(obs[34])),
-               # 'shippingservice_traffic_out': int("{}".format(obs[35])),
-                 'shippingservice_latency': float("{:.3f}".format(latency)),
+                 'shippingservice_num_pods': float("{}".format(obs[15])),
+          #       'shippingservice_desired_replicas': int("{}".format(obs[1])),
+                 'shippingservice_cpu_usage': float("{}".format(obs[16])),
+                 'shippingservice_mem_usage': float("{}".format(obs[17])),
+       #          'shippingservice_traffic_in': int("{}".format(obs[34])),
+        #         'shippingservice_traffic_out': int("{}".format(obs[35])),
+         #        'shippingservice_latency': float("{:.3f}".format(latency)),
 
-                 'currencyservice_num_pods': int("{}".format(obs[36])),
-                # 'currencyservice_desired_replicas': int("{}".format(obs[37])),
-                 'currencyservice_cpu_usage': int("{}".format(obs[38])),
-                 'currencyservice_cpu_usage_predictions': float("{}".format(obs[72])),
-                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
-                 'currencyservice_mem_usage': int("{}".format(obs[39])),
-               #  'currencyservice_traffic_in': int("{}".format(obs[40])),
-               #  'currencyservice_traffic_out': int("{}".format(obs[41])),
-                 'currencyservice_latency': float("{:.3f}".format(latency)),
+                 'currencyservice_num_pods': float("{}".format(obs[18])),
+       #          'currencyservice_desired_replicas': int("{}".format(obs[37])),
+                 'currencyservice_cpu_usage': float("{}".format(obs[19])),
+                 'currencyservice_mem_usage': float("{}".format(obs[20])),
+            #     'currencyservice_traffic_in': int("{}".format(obs[40])),
+             #    'currencyservice_traffic_out': int("{}".format(obs[41])),
+              #   'currencyservice_latency': float("{:.3f}".format(latency)),
 
-                 'redis-cart_num_pods': int("{}".format(obs[42])),
-               #  'redis-cart_desired_replicas': int("{}".format(obs[43])),
-                 'redis-cart_cpu_usage': int("{}".format(obs[44])),
-                 'redis-cart_cpu_usage_predictions': float("{}".format(obs[73])),
-                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
-                 'redis-cart_mem_usage': int("{}".format(obs[45])),
-               #  'redis-cart_traffic_in': int("{}".format(obs[46])),
-               #  'redis-cart_traffic_out': int("{}".format(obs[47])),
-                 'redis-cart_latency': float("{:.3f}".format(latency)),
+                 'redis-cart_num_pods': float("{}".format(obs[21])),
+       #          'redis-cart_desired_replicas': int("{}".format(obs[43])),
+                 'redis-cart_cpu_usage': float("{}".format(obs[22])),
+                 'redis-cart_mem_usage': float("{}".format(obs[23])),
+             #    'redis-cart_traffic_in': int("{}".format(obs[46])),
+              #   'redis-cart_traffic_out': int("{}".format(obs[47])),
+               #  'redis-cart_latency': float("{:.3f}".format(latency)),
 
-                 'checkoutservice_num_pods': int("{}".format(obs[48])),
-                # 'checkoutservice_desired_replicas': int("{}".format(obs[49])),
-                 'checkoutservice_cpu_usage': int("{}".format(obs[50])),
-                 'checkoutservice_cpu_usage_predictions': float("{}".format(obs[74])),
-                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
-                 'checkoutservice_mem_usage': int("{}".format(obs[51])),
-                # 'checkoutservice_traffic_in': int("{}".format(obs[52])),
-                # 'checkoutservice_traffic_out': int("{}".format(obs[53])),
-                 'checkoutservice_latency': float("{:.3f}".format(latency)),
+                 'checkoutservice_num_pods': float("{}".format(obs[24])),
+       #          'checkoutservice_desired_replicas': int("{}".format(obs[49])),
+                 'checkoutservice_cpu_usage': float("{}".format(obs[25])),
+                 'checkoutservice_mem_usage': float("{}".format(obs[26])),
+        #         'checkoutservice_traffic_in': int("{}".format(obs[52])),
+         #        'checkoutservice_traffic_out': int("{}".format(obs[53])),
+          #       'checkoutservice_latency': float("{:.3f}".format(latency)),
 
-                 'frontend_num_pods': int("{}".format(obs[54])),
-                # 'frontend_desired_replicas': int("{}".format(obs[55])),
-                 'frontend_cpu_usage': int("{}".format(obs[56])),
-                 'frontend_cpu_usage_predictions': float("{}".format(obs[75])),
-                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
-                 'frontend_mem_usage': int("{}".format(obs[57])),
-                # 'frontend_traffic_in': int("{}".format(obs[58])),
-                # 'frontend_traffic_out': int("{}".format(obs[59])),
-                 'frontend_latency': float("{:.3f}".format(latency)),
+                 'frontend_num_pods': float("{}".format(obs[27])),
+       #          'frontend_desired_replicas': int("{}".format(obs[55])),
+                 'frontend_cpu_usage': float("{}".format(obs[28])),
+                 'frontend_mem_usage': float("{}".format(obs[29])),
+     #            'frontend_traffic_in': int("{}".format(obs[58])),
+      #           'frontend_traffic_out': int("{}".format(obs[59])),
+       #          'frontend_latency': float("{:.3f}".format(latency)),
 
-                 'emailservice_num_pods': int("{}".format(obs[60])),
-                # 'emailservice_desired_replicas': int("{}".format(obs[61])),
-                 'emailservice_cpu_usage': int("{}".format(obs[62])),
-                 'emailservice_cpu_usage_predictions': float("{}".format(obs[76])),
-                 ### MODIFY HERE TO CHANGE THE PREDICTION TARGET
-                 'emailservice_mem_usage': int("{}".format(obs[63])),
-                # 'emailservice_traffic_in': int("{}".format(obs[64])),
-                # 'emailservice_traffic_out': int("{}".format(obs[65])),
-                 'emailservice_latency': float("{:.3f}".format(latency))
-
-                 'none_counter': float("{}".format(obs[]))
+                 'emailservice_num_pods': float("{}".format(obs[30])),
+           #      'emailservice_desired_replicas': int("{}".format(obs[61])),
+                 'emailservice_cpu_usage': float("{}".format(obs[31])),
+                 'emailservice_mem_usage': float("{}".format(obs[32])),
+          ##       'emailservice_traffic_in': int("{}".format(obs[64])),
+            #     'emailservice_traffic_out': int("{}".format(obs[65])),
+             #    'emailservice_latency': float("{:.3f}".format(latency))
+                 'none_counter': float("{}".format(obs[33]))
                  }
 
             '''
